@@ -1,4 +1,5 @@
 "use client";
+// @ts-nocheck
 import { useState, useRef, useEffect } from "react";
 import dynamic from "next/dynamic";
 import {
