@@ -299,7 +299,7 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
     const sc=course?cStatus(saved.date,saved.slot,bookings,course):null;
     return(
       <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
-        <div style={{height:wide?260:200,overflow:"hidden",width:"100%"}}>
+        <div style={{height:wide?360:240,overflow:"hidden",width:"100%"}}>
           {successImg?<img src={successImg} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>
             :<div style={{height:"100%",background:`linear-gradient(140deg,${P},${P}cc)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80}}>🥚</div>}
         </div>
@@ -330,8 +330,8 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
   // ── Main form — I.1 single column, same order as mobile ───────────────────
   return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
-      {/* Banner — fix 5: explicit 100% width ensures full-width on desktop */}
-      <div style={{height:wide?280:220,overflow:"hidden",width:"100%"}}>
+      {/* Banner — 16:9 ratio feel, wider crop */}
+      <div style={{height:wide?420:260,overflow:"hidden",width:"100%"}}>
         {bannerImg?<img src={bannerImg} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
           :<div style={{height:"100%",background:`linear-gradient(150deg,${P}88,${P},${P}dd)`}}/>}
       </div>
@@ -493,16 +493,59 @@ function QueryPage({bookings,setBookings,S,P,showToast}){
 // ══════════════════════════════════════════════════════════════════════════════
 function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerImg,successImg,setSuccessImg,carouselImgs,setCarouselImgs,S,setS,P,showToast}){
   const[staff,setStaff]=useState(null);
+  const[authLoading,setAuthLoading]=useState(false);
+  const[authError,setAuthError]=useState("");
   const[tab,setTab]=useState("today");
   const[searchQ,setSearchQ]=useState("");
   const[searchDate,setSearchDate]=useState("");
   const[editId,setEditId]=useState(null);
   const[addMode,setAddMode]=useState(false);
   const[cancelModal,setCancelModal]=useState(null);
-  const[noShowModal,setNoShowModal]=useState(null); // III.2
+  const[noShowModal,setNoShowModal]=useState(null);
   const[nc,setNc]=useState({name:"",icon:"🎨",iconImg:null,price:"",maxGroups:"",minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕（無老師全程教學）",slots:"09:30,10:40,14:10"});
   const st=mkS(P);
   const wide=useWide();
+
+  // 監聽 Supabase Auth 狀態，登入後驗證白名單
+  useEffect(()=>{
+    import("./supabase").then(({supabase,isStaffEmail})=>{
+      // 取得目前 session
+      supabase.auth.getSession().then(async({data:{session}})=>{
+        if(session?.user){
+          const email=session.user.email||"";
+          const ok=await isStaffEmail(email);
+          if(ok) setStaff({email,name:session.user.user_metadata?.full_name||email});
+          else { supabase.auth.signOut(); setAuthError("此帳號不在員工白名單中，請聯絡管理員。"); }
+        }
+      });
+      // 監聽登入/登出事件
+      const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
+        if(event==="SIGNED_IN"&&session?.user){
+          const email=session.user.email||"";
+          const ok=await isStaffEmail(email);
+          if(ok){ setStaff({email,name:session.user.user_metadata?.full_name||email}); setAuthError(""); }
+          else { supabase.auth.signOut(); setAuthError("此帳號不在員工白名單中，請聯絡管理員。"); }
+        }
+        if(event==="SIGNED_OUT") setStaff(null);
+      });
+      return()=>subscription.unsubscribe();
+    });
+  },[]);
+
+  const handleGoogleLogin=async()=>{
+    setAuthLoading(true); setAuthError("");
+    const{supabase}=await import("./supabase");
+    const{error}=await supabase.auth.signInWithOAuth({
+      provider:"google",
+      options:{redirectTo:window.location.href}
+    });
+    if(error){ setAuthError("登入失敗，請再試一次。"); setAuthLoading(false); }
+  };
+  const handleLogout=async()=>{
+    const{supabase}=await import("./supabase");
+    await supabase.auth.signOut();
+    setStaff(null);
+  };
 
   if(!staff) return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
@@ -512,12 +555,12 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
           <div style={{width:68,height:68,borderRadius:"50%",background:`${P}18`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 18px"}}><Ic.Person s={30} c={P}/></div>
           <div style={{fontSize:21,fontWeight:800,color:G[900],marginBottom:6}}>員工後台登入</div>
           <div style={{fontSize:14,color:G[500],marginBottom:24}}>僅限白名單員工帳號存取</div>
-          <button onClick={()=>setStaff({email:S.staffEmails[0],name:"員工A"})}
-            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:"#fff",border:`1px solid ${G[200]}`,borderRadius:12,padding:"14px 20px",width:"100%",cursor:"pointer",fontSize:15,fontFamily:FF,boxShadow:"0 1px 4px rgba(0,0,0,.08)"}}>
+          {authError&&<div style={{background:RDB,color:RD,borderRadius:10,padding:"12px 14px",fontSize:13,marginBottom:16,lineHeight:1.6}}>{authError}</div>}
+          <button onClick={handleGoogleLogin} disabled={authLoading}
+            style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,background:"#fff",border:`1px solid ${G[200]}`,borderRadius:12,padding:"14px 20px",width:"100%",cursor:authLoading?"not-allowed":"pointer",fontSize:15,fontFamily:FF,boxShadow:"0 1px 4px rgba(0,0,0,.08)",opacity:authLoading?.6:1}}>
             <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.9 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/><path fill="#34A853" d="M6.3 14.7l7 5.1C15.1 16.2 19.2 13 24 13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 16.3 2 9.7 7.4 6.3 14.7z"/><path fill="#FBBC05" d="M24 46c5.5 0 10.5-1.9 14.4-5l-6.7-5.5C29.6 37 26.9 38 24 38c-5.9 0-10.8-4-12.6-9.4l-7.1 5.5C7.8 41.5 15.4 46 24 46z"/><path fill="#EA4335" d="M44.5 20H24v8.5h11.8c-.8 2.4-2.4 4.5-4.5 6l6.7 5.5C41.9 36.3 45 30.6 45 24c0-1.3-.2-2.7-.5-4z"/></svg>
-            以 Google 帳號登入（員工）
+            {authLoading?"登入中...":"以 Google 帳號登入（員工）"}
           </button>
-          <p style={{fontSize:12,color:G[300],margin:"10px 0 0"}}>Demo：模擬白名單員工登入</p>
         </div>
       </div>
     </div>
@@ -612,7 +655,7 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
       <div style={{background:"#fff",padding:"15px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${G[100]}`}}>
         {/* I.3 — removed · from staff header */}
         <span style={{fontSize:18,fontWeight:700,color:G[900]}}>員工後台 <span style={{fontWeight:400,fontSize:14,color:G[400]}}>{staff.name}</span></span>
-        <button onClick={()=>setStaff(null)} style={{background:"none",border:"none",color:G[500],fontSize:14,cursor:"pointer",fontFamily:FF}}>登出</button>
+      <button onClick={handleLogout} style={{background:"none",border:"none",color:G[500],fontSize:14,cursor:"pointer",fontFamily:FF}}>登出</button>
       </div>
       <div style={{background:"#fff",display:"flex",borderBottom:`1px solid ${G[100]}`,marginBottom:14,overflowX:"auto"}}>
         {TABS.map(([id,label])=><button key={id} style={tSt(id)} onClick={()=>setTab(id)}>{label}</button>)}
@@ -748,7 +791,17 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
 function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successImg,setSuccessImg,carouselImgs,setCarouselImgs,setCarImg,removeCarSlot,bookings}){
   const[d,setD]=useState({...S,staffEmails:[...S.staffEmails],fieldLabels:{...S.fieldLabels}});
   const[newEmail,setNewEmail]=useState("");
-  const save=()=>{setS(d);showToast("設定已儲存！");};
+  const save=async()=>{
+    setS(d);
+    // 文字設定全部存進 Supabase
+    const textFields=["shopName","shopSubtitle","phone","mapUrl","address","hours","noticeTitle","noticeBody","primaryColor","sidebarName","staffEmails","fieldLabels"];
+    await Promise.all(textFields.map(k=>saveSetting(k,(d as any)[k])));
+    // 圖片也存進 Supabase（base64，可能較大但免費方案 5MB/row 足夠）
+    await saveSetting("bannerImg", bannerImg);
+    await saveSetting("successImg", successImg);
+    await saveSetting("carouselImgs", carouselImgs);
+    showToast("設定已儲存！");
+  };
   const addEmail=()=>{if(newEmail&&!d.staffEmails.includes(newEmail)){setD(p=>({...p,staffEmails:[...p.staffEmails,newEmail]}));setNewEmail("");}};
   const removeEmail=e=>setD(p=>({...p,staffEmails:p.staffEmails.filter(x=>x!==e)}));
 
@@ -934,6 +987,10 @@ function App(){
         if(bks.length>0) setBookings(bks);
         if(crs.length>0) setCourses(crs);
         if(saved.shopName) setS((p:any)=>({...p,...saved}));
+        // 載入圖片設定
+        if(saved.bannerImg) setBannerImg(saved.bannerImg);
+        if(saved.successImg) setSuccessImg(saved.successImg);
+        if(saved.carouselImgs) setCarouselImgs(saved.carouselImgs);
       } catch(e){ console.error(e); }
       setLoading(false);
     }
