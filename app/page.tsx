@@ -542,7 +542,7 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
           if(ok) setStaff({email,name:session.user.user_metadata?.full_name||email});
           else{
             forcingOut.current=true;
-            await supabase.auth.signOut();
+            await supabase.auth.signOut({scope:"local"});
             forcingOut.current=false;
             setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
           }
@@ -558,7 +558,7 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
             setAuthError("");
           } else{
             forcingOut.current=true;
-            await supabase.auth.signOut();
+            await supabase.auth.signOut({scope:"local"});
             forcingOut.current=false;
             setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
           }
@@ -579,11 +579,12 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
     });
     if(error){ setAuthError("登入失敗，請再試一次。"); setAuthLoading(false); }
   };
-  const handleLogout=async()=>{
-    const{supabase}=await import("./supabase");
-    await supabase.auth.signOut();
-    setStaff(null);
-  };
+ const handleLogout=async()=>{
+  const{supabase}=await import("./supabase");
+  await supabase.auth.signOut({scope:"local"});
+  setStaff(null);
+  setAuthError("");
+};
 
   if(!staff) return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
