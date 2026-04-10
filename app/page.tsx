@@ -575,7 +575,10 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
     const{supabase}=await import("./supabase");
     const{error}=await supabase.auth.signInWithOAuth({
       provider:"google",
-      options:{redirectTo:window.location.href}
+      options:{
+        redirectTo:window.location.href,
+        queryParams:{ prompt:"select_account" }, // 每次都強制彈出選帳號畫面
+      }
     });
     if(error){ setAuthError("登入失敗，請再試一次。"); setAuthLoading(false); }
   };
