@@ -176,12 +176,35 @@ function Carousel({imgs,P}){
 // ── Image upload ──────────────────────────────────────────────────────────────
 function ImgUpload({label,sub,value,onChange,height=130}){
   const ref=useRef();
-  const handle=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>onChange(ev.target.result);r.readAsDataURL(f);};
+  const handle=e=>{
+    const f=e.target.files[0]; if(!f)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{
+      // 壓縮圖片再存，讓上傳速度快 10 倍
+      const img=new Image();
+      img.onload=()=>{
+        const MAX=1200; // 最長邊不超過 1200px
+        let w=img.width, h=img.height;
+        if(w>MAX||h>MAX){
+          if(w>h){ h=Math.round(h*MAX/w); w=MAX; }
+          else{ w=Math.round(w*MAX/h); h=MAX; }
+        }
+        const canvas=document.createElement("canvas");
+        canvas.width=w; canvas.height=h;
+        const ctx=canvas.getContext("2d")!;
+        ctx.drawImage(img,0,0,w,h);
+        // 壓縮到 80% 品質的 JPEG
+        onChange(canvas.toDataURL("image/jpeg",0.8));
+      };
+      img.src=ev.target!.result as string;
+    };
+    reader.readAsDataURL(f);
+  };
   return(
     <div>
       {label&&<div style={{fontSize:14,fontWeight:600,color:G[700],marginBottom:2}}>{label}</div>}
       {sub&&<div style={{fontSize:12,color:G[400],marginBottom:8}}>{sub}</div>}
-      <div onClick={()=>ref.current.click()} style={{border:`2px dashed ${G[200]}`,borderRadius:12,height,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",overflow:"hidden",background:G[50]}}>
+      <div onClick={()=>(ref.current as any).click()} style={{border:`2px dashed ${G[200]}`,borderRadius:12,height,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",cursor:"pointer",overflow:"hidden",background:G[50]}}>
         {value?<img src={value} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
           :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:8,color:G[400]}}><Ic.Upload s={20} c={G[300]}/><span style={{fontSize:13}}>點擊上傳圖片</span></div>}
       </div>
@@ -189,6 +212,7 @@ function ImgUpload({label,sub,value,onChange,height=130}){
       <input type="file" accept="image/*" ref={ref} onChange={handle} style={{display:"none"}}/>
     </div>
   );
+}
 }
 // ── Shared booking card ───────────────────────────────────────────────────────
 // III.1 — removed onCheckIn / showCheckIn from customer-facing card
