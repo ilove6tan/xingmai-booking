@@ -495,6 +495,7 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
   const[staff,setStaff]=useState(null);
   const[authLoading,setAuthLoading]=useState(false);
   const[authError,setAuthError]=useState("");
+  const forcingOut=useRef(false); // prevent loop when we force-signout non-whitelisted user
   const[tab,setTab]=useState("today");
   const[searchQ,setSearchQ]=useState("");
   const[searchDate,setSearchDate]=useState("");
@@ -509,24 +510,37 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
   // 監聽 Supabase Auth 狀態，登入後驗證白名單
   useEffect(()=>{
     import("./supabase").then(({supabase,isStaffEmail})=>{
-      // 取得目前 session
+      // 取得目前 session（頁面重新載入後恢復登入）
       supabase.auth.getSession().then(async({data:{session}})=>{
-        if(session?.user){
+        if(session?.user&&!forcingOut.current){
           const email=session.user.email||"";
           const ok=await isStaffEmail(email);
           if(ok) setStaff({email,name:session.user.user_metadata?.full_name||email});
-          else { supabase.auth.signOut(); setAuthError("此帳號不在員工白名單中，請聯絡管理員。"); }
+          else{
+            forcingOut.current=true;
+            await supabase.auth.signOut();
+            forcingOut.current=false;
+            setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
+          }
         }
       });
       // 監聽登入/登出事件
       const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
-        if(event==="SIGNED_IN"&&session?.user){
+        if(event==="SIGNED_IN"&&session?.user&&!forcingOut.current){
           const email=session.user.email||"";
           const ok=await isStaffEmail(email);
-          if(ok){ setStaff({email,name:session.user.user_metadata?.full_name||email}); setAuthError(""); }
-          else { supabase.auth.signOut(); setAuthError("此帳號不在員工白名單中，請聯絡管理員。"); }
+          if(ok){
+            setStaff({email,name:session.user.user_metadata?.full_name||email});
+            setAuthError("");
+          } else{
+            forcingOut.current=true;
+            await supabase.auth.signOut();
+            forcingOut.current=false;
+            setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
+          }
+          setAuthLoading(false);
         }
-        if(event==="SIGNED_OUT") setStaff(null);
+        if(event==="SIGNED_OUT"&&!forcingOut.current) setStaff(null);
       });
       return()=>subscription.unsubscribe();
     });
@@ -793,14 +807,66 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
   const[newEmail,setNewEmail]=useState("");
   const save=async()=>{
     setS(d);
-    // 文字設定全部存進 Supabase
-    const textFields=["shopName","shopSubtitle","phone","mapUrl","address","hours","noticeTitle","noticeBody","primaryColor","sidebarName","staffEmails","fieldLabels"];
-    await Promise.all(textFields.map(k=>saveSetting(k,(d as any)[k])));
-    // 圖片也存進 Supabase（base64，可能較大但免費方案 5MB/row 足夠）
-    await saveSetting("bannerImg", bannerImg);
-    await saveSetting("successImg", successImg);
-    await saveSetting("carouselImgs", carouselImgs);
-    showToast("設定已儲存！");
+    showToast("儲存中...");
+    try {
+      const {supabase}=await import("./supabase");
+
+      // 1. 儲存文字設定
+      const textKeys=["shopName","shopSubtitle","phone","mapUrl","address","hours",
+        "noticeTitle","noticeBody","primaryColor","sidebarName","fieldLabels"];
+      await Promise.all(textKeys.map(k=>saveSetting(k,(d as any)[k])));
+
+      // 2. 圖片上傳到 Supabase Storage（比存 base64 在 DB 更穩定）
+      async function uploadImg(key:string, dataUrl:string|null){
+        if(!dataUrl){ await saveSetting(key,null); return; }
+        // 已經是 storage URL 則直接存
+        if(dataUrl.startsWith("http")){ await saveSetting(key,dataUrl); return; }
+        // base64 → blob → upload
+        const res=await fetch(dataUrl);
+        const blob=await res.blob();
+        const ext=blob.type.includes("png")?"png":"jpg";
+        const path=`${key}-${Date.now()}.${ext}`;
+        const{data,error}=await supabase.storage
+          .from("site-images")
+          .upload(path,blob,{upsert:true,contentType:blob.type});
+        if(error){ console.error("upload error",error);
+          // 退而儲存 base64（小圖仍可用）
+          await saveSetting(key,dataUrl); return;
+        }
+        const{data:{publicUrl}}=supabase.storage.from("site-images").getPublicUrl(data.path);
+        await saveSetting(key,publicUrl);
+        // 更新本地 state 為 URL（避免下次再上傳）
+        if(key==="bannerImg") setBannerImg(publicUrl);
+        if(key==="successImg") setSuccessImg(publicUrl);
+      }
+
+      await uploadImg("bannerImg",bannerImg);
+      await uploadImg("successImg",successImg);
+      // 輪播圖逐張上傳
+      const uploadedCarousel=await Promise.all(
+        carouselImgs.map(async(img,i)=>{
+          if(!img) return null;
+          if(img.startsWith("http")) return img;
+          const res=await fetch(img);
+          const blob=await res.blob();
+          const ext=blob.type.includes("png")?"png":"jpg";
+          const path=`carousel-${i}-${Date.now()}.${ext}`;
+          const{data,error}=await supabase.storage
+            .from("site-images")
+            .upload(path,blob,{upsert:true,contentType:blob.type});
+          if(error){ return img; } // 失敗退回 base64
+          const{data:{publicUrl}}=supabase.storage.from("site-images").getPublicUrl(data.path);
+          return publicUrl;
+        })
+      );
+      setCarouselImgs(uploadedCarousel);
+      await saveSetting("carouselImgs",uploadedCarousel);
+
+      showToast("設定已儲存！");
+    } catch(e){
+      console.error("save error",e);
+      showToast("儲存時發生錯誤，請再試一次","error");
+    }
   };
   const addEmail=()=>{if(newEmail&&!d.staffEmails.includes(newEmail)){setD(p=>({...p,staffEmails:[...p.staffEmails,newEmail]}));setNewEmail("");}};
   const removeEmail=e=>setD(p=>({...p,staffEmails:p.staffEmails.filter(x=>x!==e)}));
@@ -932,23 +998,6 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
             <Ic.Plus s={18} c={G[300]}/><span style={{fontSize:12}}>新增一張</span>
           </div>
         </div>
-      </Sec>
-
-      {/* Staff whitelist */}
-      <Sec title="員工白名單（Google 帳號）">
-        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
-          {d.staffEmails.map(e=>(
-            <div key={e} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:G[50],borderRadius:8,padding:"10px 14px"}}>
-              <span style={{fontSize:14,color:G[700]}}>{e}</span>
-              <button onClick={()=>removeEmail(e)} style={{background:"none",border:"none",cursor:"pointer",color:G[400]}}><Ic.X s={14} c={G[400]}/></button>
-            </div>
-          ))}
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <input type="email" value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="新增 Email" style={{...st.INP,flex:1,padding:"11px 13px",fontSize:14}}/>
-          <button onClick={addEmail} style={{...st.BTN_P,padding:"0 16px",flexShrink:0}}><Ic.Plus s={14} c="#fff"/></button>
-        </div>
-        <div style={{fontSize:12,color:G[400],marginTop:6}}>串接 Supabase Auth 後即可真實驗證 Google 帳號。</div>
       </Sec>
 
       <Sec title="資料匯出">

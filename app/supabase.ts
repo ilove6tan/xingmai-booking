@@ -77,7 +77,7 @@ export async function saveSetting(key: string, value: any) {
   const { error } = await supabase.from('settings').upsert({
     key, value: JSON.stringify(value)
   })
-  if (error) console.error('saveSetting:', error)
+  if (error) console.error('saveSetting:', key, error)
 }
 
 // ── 員工白名單驗證 ────────────────────────────────────────────────────────────
