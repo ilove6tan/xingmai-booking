@@ -531,44 +531,54 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
   const st=mkS(P);
   const wide=useWide();
 
-  // 監聽 Supabase Auth 狀態，登入後驗證白名單
-  useEffect(()=>{
-    import("./supabase").then(({supabase,isStaffEmail})=>{
-      // 取得目前 session（頁面重新載入後恢復登入）
-      supabase.auth.getSession().then(async({data:{session}})=>{
-        if(session?.user&&!forcingOut.current){
-          const email=session.user.email||"";
-          const ok=await isStaffEmail(email);
-          if(ok) setStaff({email,name:session.user.user_metadata?.full_name||email});
-          else{
-            forcingOut.current=true;
-            await supabase.auth.signOut({scope:"global"});
-            forcingOut.current=false;
-            setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
-          }
+
+  // 監聽 Supabase Auth 狀態
+useEffect(()=>{
+  let mounted=true;
+  async function checkSession(){
+    const{supabase,isStaffEmail}=await import("./supabase");
+    try{
+      const{data:{session}}=await supabase.auth.getSession();
+      if(!mounted)return;
+      if(session?.user){
+        const email=session.user.email||"";
+        const ok=await isStaffEmail(email);
+        if(!mounted)return;
+        if(ok){
+          setStaff({email,name:session.user.user_metadata?.full_name||email});
+          setAuthError("");
+        } else {
+          await supabase.auth.signOut({scope:"global"});
+          if(!mounted)return;
+          setStaff(null);
+          setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
         }
-      });
-      // 監聽登入/登出事件
-      const{data:{subscription}}=supabase.auth.onAuthStateChange(async(event,session)=>{
-        if(event==="SIGNED_IN"&&session?.user&&!forcingOut.current){
-          const email=session.user.email||"";
-          const ok=await isStaffEmail(email);
-          if(ok){
-            setStaff({email,name:session.user.user_metadata?.full_name||email});
-            setAuthError("");
-          } else{
-            forcingOut.current=true;
-            await supabase.auth.signOut({scope:"global"});
-            forcingOut.current=false;
-            setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
-          }
-          setAuthLoading(false);
-        }
-        if(event==="SIGNED_OUT"&&!forcingOut.current) setStaff(null);
-      });
-      return()=>subscription.unsubscribe();
-    });
-  },[]);
+      }
+    }catch(e){console.error(e);}
+  }
+  checkSession();
+  return()=>{mounted=false;};
+},[]);
+
+const handleGoogleLogin=async()=>{
+  setAuthLoading(true);setAuthError("");
+  const{supabase}=await import("./supabase");
+  const{error}=await supabase.auth.signInWithOAuth({
+    provider:"google",
+    options:{
+      redirectTo:window.location.origin+window.location.pathname,
+      queryParams:{prompt:"select_account"},
+    }
+  });
+  if(error){setAuthError("登入失敗，請再試一次。");setAuthLoading(false);}
+};
+
+const handleLogout=async()=>{
+  const{supabase}=await import("./supabase");
+  await supabase.auth.signOut({scope:"global"});
+  setStaff(null);
+  setAuthError("");
+};
 
   const handleGoogleLogin=async()=>{
     setAuthLoading(true); setAuthError("");
