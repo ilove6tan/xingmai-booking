@@ -542,7 +542,7 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
           if(ok) setStaff({email,name:session.user.user_metadata?.full_name||email});
           else{
             forcingOut.current=true;
-            await supabase.auth.signOut({scope:"local"});
+            await supabase.auth.signOut({scope:"global"});
             forcingOut.current=false;
             setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
           }
@@ -558,7 +558,7 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
             setAuthError("");
           } else{
             forcingOut.current=true;
-            await supabase.auth.signOut({scope:"local"});
+            await supabase.auth.signOut({scope:"global"});
             forcingOut.current=false;
             setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
           }
