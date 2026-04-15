@@ -144,17 +144,20 @@ function Badge({s}){
   const[c,bg,t]=M[s]||M.pending;
   return <span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:bg,color:c,fontWeight:700,flexShrink:0}}>{t}</span>;
 }
-// ── Carousel ──────────────────────────────────────────────────────────────────
-function Carousel({imgs,P}){
+
+// ── Carousel (已放大高度並調整為 contain) ───────────────────────────────────────
+function Carousel({imgs,P,wide}){
   const[idx,setIdx]=useState(0);
   const valid=imgs.filter(Boolean);
   const len=Math.max(1,imgs.length);
   const safeIdx=idx%len;
   useEffect(()=>{if(len<=1)return;const t=setInterval(()=>setIdx(i=>(i+1)%len),3500);return()=>clearInterval(t);},[len]);
   return(
-    <div style={{margin:"0 0 14px",position:"relative",borderRadius:16,overflow:"hidden",height:170}}>
+    // 高度動態調整：電腦版 500px，手機版 320px
+    <div style={{margin:"0 0 14px",position:"relative",borderRadius:16,overflow:"hidden",height:wide?500:320,background:G[50]}}>
       {imgs[safeIdx]
-        ?<img src={imgs[safeIdx]} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
+        // objectFit 改為 contain 確保海報文字完整不被裁切
+        ?<img src={imgs[safeIdx]} style={{width:"100%",height:"100%",objectFit:"contain"}} alt=""/>
         :<div style={{height:"100%",background:CGRADS[safeIdx%CGRADS.length],display:"flex",alignItems:"center",justifyContent:"center"}}>
           <span style={{color:"#fff",fontSize:14,fontWeight:600,opacity:.85}}>員工後台 › 設定 可上傳照片</span>
         </div>
@@ -167,12 +170,13 @@ function Carousel({imgs,P}){
           </button>
         ))}
         <div style={{position:"absolute",bottom:8,left:0,right:0,display:"flex",justifyContent:"center",gap:5}}>
-          {imgs.map((_,i)=><div key={i} onClick={()=>setIdx(i)} style={{height:5,width:i===safeIdx?16:5,borderRadius:3,background:i===safeIdx?"#fff":"rgba(255,255,255,.45)",cursor:"pointer",transition:"width .3s"}}/>)}
+          {imgs.map((_,i)=><div key={i} onClick={()=>setIdx(i)} style={{height:5,width:i===safeIdx?16:5,borderRadius:3,background:i===safeIdx?P:"rgba(0,0,0,.15)",cursor:"pointer",transition:"width .3s"}}/>)}
         </div>
       </>}
     </div>
   );
 }
+
 // ── Image upload ──────────────────────────────────────────────────────────────
 function ImgUpload({label,sub,value,onChange,height=130}){
   const ref=useRef();
@@ -180,10 +184,9 @@ function ImgUpload({label,sub,value,onChange,height=130}){
     const f=e.target.files[0]; if(!f)return;
     const reader=new FileReader();
     reader.onload=ev=>{
-      // 壓縮圖片再存，讓上傳速度快 10 倍
       const img=new Image();
       img.onload=()=>{
-        const MAX=1200; // 最長邊不超過 1200px
+        const MAX=1200; 
         let w=img.width, h=img.height;
         if(w>MAX||h>MAX){
           if(w>h){ h=Math.round(h*MAX/w); w=MAX; }
@@ -193,7 +196,6 @@ function ImgUpload({label,sub,value,onChange,height=130}){
         canvas.width=w; canvas.height=h;
         const ctx=canvas.getContext("2d")!;
         ctx.drawImage(img,0,0,w,h);
-        // 壓縮到 80% 品質的 JPEG
         onChange(canvas.toDataURL("image/jpeg",0.8));
       };
       img.src=ev.target!.result as string;
@@ -215,13 +217,10 @@ function ImgUpload({label,sub,value,onChange,height=130}){
 }
 
 // ── Shared booking card ───────────────────────────────────────────────────────
-// III.1 — removed onCheckIn / showCheckIn from customer-facing card
-// III.2 — added showNoShow + onNoShow props for staff
 function BkCard({b,onCheckIn,onUndoCheckIn,onCancel,onNoShow,showCheckIn=false,showUndo=false,showNoShow=false}){
   return(
     <div style={{borderTop:`1px solid ${G[50]}`,padding:"15px 18px"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-        {/* I.3 — replaced · with space */}
         <span style={{fontWeight:700,fontSize:15,color:G[900]}}>{b.name} <span style={{fontWeight:400,fontSize:13,color:G[400]}}>{b.cname}</span></span>
         <Badge s={b.status}/>
       </div>
@@ -258,7 +257,6 @@ function BkCard({b,onCheckIn,onUndoCheckIn,onCancel,onNoShow,showCheckIn=false,s
 
 // ══════════════════════════════════════════════════════════════════════════════
 // BOOKING PAGE
-// I.1 — single-column layout for both desktop and mobile
 // ══════════════════════════════════════════════════════════════════════════════
 function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carouselImgs,S,P,showToast}){
   const[step,setStep]=useState("form");
@@ -282,16 +280,14 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
     setBookings((p:any)=>[...p,nb]);
     setSaved(nb);
     setStep("success");
-    await addBooking(nb); // 寫入資料庫
+    await addBooking(nb);
   };
   const doCancelSaved=()=>{
     if(saved)setBookings(p=>p.map(b=>b.id===saved.id?{...b,status:"cancelled"}:b));
     showToast("預約已成功取消");setModal(false);setStep("form");setF({cid:"c1",date:"",slot:"",groups:"",name:"",phone:""});setSaved(null);
   };
 
-  // I.1 — content wrapper: max-width centered for desktop
   const cw={maxWidth:wide?860:640,margin:"0 auto",width:"100%"};
-  const fz=(base)=>wide?base+2:base; // desktop font bump
 
   if(step==="confirm") return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
@@ -302,7 +298,6 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
       <div style={{...cw,padding:wide?"0 32px":"0 16px",margin:"0 auto"}}>
         <div style={{...st.CARD,margin:"16px 0 14px"}}>
           <div style={{fontSize:24,fontWeight:800,color:G[900],marginBottom:2}}>{f.name}</div>
-          {/* I.3 — replaced · with space */}
           <div style={{color:G[400],fontSize:14,marginBottom:18}}>{course?.name}  NT${course?.price}/組</div>
           {[["電話",f.phone],["預約日期",fmtDate(f.date)],["預約時段",f.slot],["組數",f.groups+" 組"]].map(([k,v],i,a)=>(
             <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"13px 0",borderBottom:i<a.length-1?`1px solid ${G[100]}`:"none"}}>
@@ -345,23 +340,18 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
             <button style={{...st.BTN_P,flex:1}} onClick={()=>{setStep("form");setF({cid:"c1",date:"",slot:"",groups:"",name:"",phone:""});}}>回首頁</button>
           </div>
         </div>
-        {/* II.2 — simplified cancel copy */}
         {modal&&<Modal title="確認取消預約" desc="確定要取消這筆預約嗎？" confirmBg={P} onConfirm={doCancelSaved} onCancel={()=>setModal(false)}/>}
       </div>
     );
   }
 
-  // ── Main form — I.1 single column, same order as mobile ───────────────────
   return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
-      {/* Banner — 16:9 ratio feel, wider crop */}
       <div style={{height:wide?420:260,overflow:"hidden",width:"100%"}}>
         {bannerImg?<img src={bannerImg} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
           :<div style={{height:"100%",background:`linear-gradient(150deg,${P}88,${P},${P}dd)`}}/>}
       </div>
-      {/* Single-column content */}
       <div style={{maxWidth:wide?860:640,margin:"0 auto",padding:wide?"0 32px 32px":"0 16px 32px"}}>
-        {/* Title block */}
         <div style={{background:"#fff",borderRadius:16,padding:wide?"28px 24px 22px":"22px 20px 18px",margin:"16px 0 14px",textAlign:"center",boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
           <div style={{fontSize:wide?32:24,fontWeight:800,color:G[900]}}>{S.shopName}</div>
           <div style={{fontSize:wide?16:14,color:G[500],marginTop:6,lineHeight:1.6}}>{S.shopSubtitle}</div>
@@ -370,16 +360,16 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
             <a href={S.mapUrl} target="_blank" rel="noreferrer" style={{color:G[700],fontSize:wide?17:15,display:"flex",alignItems:"center",gap:6,textDecoration:"none"}}><Ic.Pin s={15} c={G[500]}/>查看地圖</a>
           </div>
         </div>
-        {/* Notice */}
+        
         <div style={{background:`${P}12`,border:`1px solid ${P}33`,borderRadius:16,padding:wide?"20px 22px":"16px 18px",marginBottom:14}}>
           <div style={{fontWeight:700,fontSize:wide?17:15,color:P,marginBottom:8}}>{S.noticeTitle}</div>
           <div style={{fontSize:wide?15:14,color:G[600],lineHeight:2,whiteSpace:"pre-line",textAlign:"left"}}>{S.noticeBody}</div>
         </div>
-        {/* Carousel */}
-        <Carousel imgs={carouselImgs} P={P}/>
-        {/* Form card */}
+        
+        {/* 把 wide 傳遞進去給 Carousel */}
+        <Carousel imgs={carouselImgs} P={P} wide={wide}/>
+        
         <div style={{background:"#fff",borderRadius:16,padding:wide?"28px":"20px",marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
-          {/* Course */}
           <div style={{marginBottom:22}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:13}}>
               <span style={{fontWeight:700,fontSize:wide?18:16,color:G[900]}}>{S.fieldLabels?.course||"DIY 課程"}</span><span style={{color:RD,fontSize:12}}>必填</span>
@@ -393,7 +383,6 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
               ))}
             </div>
           </div>
-          {/* Date */}
           <div style={{marginBottom:22}}>
             <div style={{fontWeight:700,fontSize:wide?18:16,color:G[900],marginBottom:13}}>{S.fieldLabels?.date||"預約日期"}</div>
             <input type="date" min={TODAY} value={f.date} onChange={e=>setF(p=>({...p,date:e.target.value,slot:"",groups:""}))} style={st.INP}/>
@@ -402,7 +391,6 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
               <span style={{color:isWeekend(f.date)?GR:AM,fontWeight:600}}>{isWeekend(f.date)?"假日（1 組即開課）":"平日"}</span>
             </div>}
           </div>
-          {/* Slots */}
           <div style={{marginBottom:22}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:13}}>
               <span style={{fontWeight:700,fontSize:wide?18:16,color:G[900]}}>{S.fieldLabels?.slot||"預約時段"}</span><span style={{color:RD,fontSize:12}}>必填</span>
@@ -420,7 +408,6 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
               </div>
             }
           </div>
-          {/* Groups */}
           <div style={{marginBottom:22}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:13}}>
               <div style={{display:"flex",alignItems:"baseline",gap:8}}>
@@ -446,7 +433,6 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
           </div>
           <button style={{...st.BTN_P,width:"100%",opacity:ok?1:.35}} disabled={!ok} onClick={()=>setStep("confirm")}>確認預約</button>
         </div>
-        {/* Business info */}
         <div style={{background:"#fff",borderRadius:16,padding:wide?"24px":"20px",boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
           {[["營業時間",S.hours],["地址",S.address],["聯絡電話",S.phone]].map(([label,val],i)=>(
             <div key={label} style={{paddingTop:i>0?16:0,paddingBottom:i<2?16:0,borderBottom:i<2?`1px solid ${G[100]}`:"none"}}>
@@ -461,7 +447,7 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// QUERY PAGE — III.1 no check-in button for customers
+// QUERY PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 function QueryPage({bookings,setBookings,S,P,showToast}){
   const[qName,setQName]=useState("");
@@ -499,14 +485,11 @@ function QueryPage({bookings,setBookings,S,P,showToast}){
           ?<div style={{textAlign:"center",padding:"44px 0",color:G[400]}}><div style={{fontSize:36,marginBottom:12,opacity:.4}}>📭</div><div style={{fontSize:15}}>查無預約紀錄，請確認姓名與電話是否正確</div></div>
           :<div style={{...st.CARD,margin:"0 0 24px",padding:0,overflow:"hidden"}}>
             {results.map(b=>(
-              <BkCard key={b.id} b={b}
-                showCheckIn={false}  /* III.1 — no check-in for customers */
-                onCancel={b.date>=TODAY&&b.status==="pending"?()=>setCancelModal(b.id):null}/>
+              <BkCard key={b.id} b={b} showCheckIn={false} onCancel={b.date>=TODAY&&b.status==="pending"?()=>setCancelModal(b.id):null}/>
             ))}
           </div>
         )}
       </div>
-      {/* II.2 */}
       {cancelModal&&<Modal title="確認取消預約" desc="確定要取消這筆預約嗎？" confirmBg={P} onConfirm={()=>handleCancel(cancelModal)} onCancel={()=>setCancelModal(null)}/>}
     </div>
   );
@@ -519,7 +502,6 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
   const[staff,setStaff]=useState(null);
   const[authLoading,setAuthLoading]=useState(false);
   const[authError,setAuthError]=useState("");
-  const forcingOut=useRef(false); // prevent loop when we force-signout non-whitelisted user
   const[tab,setTab]=useState("today");
   const[searchQ,setSearchQ]=useState("");
   const[searchDate,setSearchDate]=useState("");
@@ -531,11 +513,9 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
   const st=mkS(P);
   const wide=useWide();
 
-  // 監聽 Supabase Auth 狀態
   useEffect(()=>{
     let mounted=true;
     let processingAuth=false;
-
     async function processSession(session:any){
       if(!mounted||processingAuth)return;
       processingAuth=true;
@@ -558,17 +538,12 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
         }
       } finally { processingAuth=false; }
     }
-
     import("./supabase").then(({supabase})=>{
-      // 頁面載入時檢查現有 session
       supabase.auth.getSession().then(({data:{session}})=>processSession(session));
-
-      // OAuth 跳轉回來時接收新 token（必須保留）
       const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
         if(event==="SIGNED_IN") processSession(session);
         if(event==="SIGNED_OUT"&&mounted) setStaff(null);
       });
-
       return()=>{ mounted=false; subscription.unsubscribe(); };
     });
   },[]);
@@ -624,43 +599,16 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
     return qMatch&&dMatch;
   }):[];
 
-  const checkIn=(id:string)=>{
-    setBookings((p:any)=>p.map((b:any)=>b.id===id?{...b,status:"checked_in"}:b));
-    showToast("已確認報到！");
-    updateBookingStatus(id,"checked_in");
-  };
-  const undoCheckIn=(id:string)=>{
-    setBookings((p:any)=>p.map((b:any)=>b.id===id?{...b,status:"pending"}:b));
-    showToast("已撤回報到狀態");
-    updateBookingStatus(id,"pending");
-  };
-  const confirmNoShow=(id:string)=>{
-    setBookings((p:any)=>p.map((b:any)=>b.id===id?{...b,status:"no_show"}:b));
-    showToast("已標記為未到");
-    setNoShowModal(null);
-    updateBookingStatus(id,"no_show");
-  };
-  const cancelB=(id:string)=>{
-    setBookings((p:any)=>p.map((b:any)=>b.id===id?{...b,status:"cancelled"}:b));
-    showToast("已取消該預約","error");
-    setCancelModal(null);
-    updateBookingStatus(id,"cancelled");
-  };
+  const checkIn=(id:string)=>{setBookings((p:any)=>p.map((b:any)=>b.id===id?{...b,status:"checked_in"}:b));showToast("已確認報到！");updateBookingStatus(id,"checked_in");};
+  const undoCheckIn=(id:string)=>{setBookings((p:any)=>p.map((b:any)=>b.id===id?{...b,status:"pending"}:b));showToast("已撤回報到狀態");updateBookingStatus(id,"pending");};
+  const confirmNoShow=(id:string)=>{setBookings((p:any)=>p.map((b:any)=>b.id===id?{...b,status:"no_show"}:b));showToast("已標記為未到");setNoShowModal(null);updateBookingStatus(id,"no_show");};
+  const cancelB=(id:string)=>{setBookings((p:any)=>p.map((b:any)=>b.id===id?{...b,status:"cancelled"}:b));showToast("已取消該預約","error");setCancelModal(null);updateBookingStatus(id,"cancelled");};
   const toggleCourse=id=>setCourses(p=>p.map(c=>c.id===id?{...c,active:!c.active}:c));
-  const saveCourseEdit=(id,patch)=>{
-    setCourses(p=>p.map(c=>c.id===id?{...c,...patch,price:Number(patch.price||c.price),maxGroups:Number(patch.maxGroups||c.maxGroups),slots:typeof patch.slots==="string"?patch.slots.split(",").map(s=>s.trim()).filter(Boolean):c.slots}:c));
-    setEditId(null);showToast("課程設定已儲存！");
-  };
-  const addCourse=()=>{
-    if(!nc.name||!nc.price||!nc.maxGroups)return;
-    setCourses(p=>[...p,{...nc,id:"c"+Date.now(),price:Number(nc.price),maxGroups:Number(nc.maxGroups),slots:nc.slots.split(",").map(s=>s.trim()).filter(Boolean),active:true}]);
-    setNc({name:"",icon:"🎨",iconImg:null,price:"",maxGroups:"",minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕（無老師全程教學）",slots:"09:30,10:40,14:10"});
-    setAddMode(false);showToast("課程已成功新增！");
-  };
+  const saveCourseEdit=(id,patch)=>{setCourses(p=>p.map(c=>c.id===id?{...c,...patch,price:Number(patch.price||c.price),maxGroups:Number(patch.maxGroups||c.maxGroups),slots:typeof patch.slots==="string"?patch.slots.split(",").map(s=>s.trim()).filter(Boolean):c.slots}:c));setEditId(null);showToast("課程設定已儲存！");};
+  const addCourse=()=>{if(!nc.name||!nc.price||!nc.maxGroups)return;setCourses(p=>[...p,{...nc,id:"c"+Date.now(),price:Number(nc.price),maxGroups:Number(nc.maxGroups),slots:nc.slots.split(",").map(s=>s.trim()).filter(Boolean),active:true}]);setNc({name:"",icon:"🎨",iconImg:null,price:"",maxGroups:"",minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕（無老師全程教學）",slots:"09:30,10:40,14:10"});setAddMode(false);showToast("課程已成功新增！");};
   const setCarImg=(i,v)=>setCarouselImgs(p=>{const a=[...p];a[i]=v;return a;});
   const removeCarSlot=i=>setCarouselImgs(p=>p.filter((_,idx)=>idx!==i));
 
-  // IV.1 — merged tabs (removed "appearance", kept "settings" which now includes appearance)
   const TABS=[["today","今日"],["search","查詢"],["courses","課程"],["settings","設定"]];
   const tSt=t=>({padding:"12px 4px",background:"none",border:"none",cursor:"pointer",fontSize:wide?15:12,fontFamily:FF,fontWeight:tab===t?700:400,color:tab===t?P:G[500],borderBottom:`2.5px solid ${tab===t?P:"transparent"}`,whiteSpace:"nowrap",flex:1});
   const wrap={maxWidth:wide?1100:undefined,margin:wide?"0 auto":undefined,padding:wide?"0 24px":undefined};
@@ -700,7 +648,6 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
   return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF,position:"relative"}}>
       <div style={{background:"#fff",padding:"15px 18px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:`1px solid ${G[100]}`}}>
-        {/* I.3 — removed · from staff header */}
         <span style={{fontSize:18,fontWeight:700,color:G[900]}}>員工後台 <span style={{fontWeight:400,fontSize:14,color:G[400]}}>{staff.name}</span></span>
       <button onClick={handleLogout} style={{background:"none",border:"none",color:G[500],fontSize:14,cursor:"pointer",fontFamily:FF}}>登出</button>
       </div>
@@ -818,7 +765,7 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
           </div>:<button onClick={()=>setAddMode(true)} style={{...st.BTN_O,width:"calc(100% - 32px)",margin:"0 16px",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}><Ic.Plus s={16} c={P}/>新增 DIY 課程</button>}
         </>}
 
-        {/* SETTINGS — IV.1 merged with appearance, IV.2 live preview, IV.3 color picker */}
+        {/* SETTINGS */}
         {tab==="settings"&&<SettingsTab S={S} setS={setS} P={P} st={st} wide={wide} showToast={showToast}
           bannerImg={bannerImg} setBannerImg={setBannerImg}
           successImg={successImg} setSuccessImg={setSuccessImg}
@@ -827,14 +774,13 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
           bookings={bookings}/>}
       </div>
 
-      {/* III.2 — no-show modal */}
       {noShowModal&&<Modal title="確認客人未到嗎？" confirmBg="#2563EB" confirmLabel="確認未到" onConfirm={()=>confirmNoShow(noShowModal)} onCancel={()=>setNoShowModal(null)}/>}
       {cancelModal&&<Modal title="確認取消預約" desc="確定要取消這筆預約嗎？" confirmBg={P} onConfirm={()=>cancelB(cancelModal)} onCancel={()=>setCancelModal(null)}/>}
     </div>
   );
 }
 
-// ── IV. Settings tab with live preview ────────────────────────────────────────
+// ── IV. Settings tab ────────────────────────────────────────
 function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successImg,setSuccessImg,carouselImgs,setCarouselImgs,setCarImg,removeCarSlot,bookings}){
   const[d,setD]=useState({...S,staffEmails:[...S.staffEmails],fieldLabels:{...S.fieldLabels}});
   const[newEmail,setNewEmail]=useState("");
@@ -844,17 +790,13 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
     try {
       const {supabase}=await import("./supabase");
 
-      // 1. 儲存文字設定
       const textKeys=["shopName","shopSubtitle","phone","mapUrl","address","hours",
         "noticeTitle","noticeBody","primaryColor","sidebarName","fieldLabels"];
       await Promise.all(textKeys.map(k=>saveSetting(k,(d as any)[k])));
 
-      // 2. 圖片上傳到 Supabase Storage（比存 base64 在 DB 更穩定）
       async function uploadImg(key:string, dataUrl:string|null){
         if(!dataUrl){ await saveSetting(key,null); return; }
-        // 已經是 storage URL 則直接存
         if(dataUrl.startsWith("http")){ await saveSetting(key,dataUrl); return; }
-        // base64 → blob → upload
         const res=await fetch(dataUrl);
         const blob=await res.blob();
         const ext=blob.type.includes("png")?"png":"jpg";
@@ -863,19 +805,16 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
           .from("site-images")
           .upload(path,blob,{upsert:true,contentType:blob.type});
         if(error){ console.error("upload error",error);
-          // 退而儲存 base64（小圖仍可用）
           await saveSetting(key,dataUrl); return;
         }
         const{data:{publicUrl}}=supabase.storage.from("site-images").getPublicUrl(data.path);
         await saveSetting(key,publicUrl);
-        // 更新本地 state 為 URL（避免下次再上傳）
         if(key==="bannerImg") setBannerImg(publicUrl);
         if(key==="successImg") setSuccessImg(publicUrl);
       }
 
       await uploadImg("bannerImg",bannerImg);
       await uploadImg("successImg",successImg);
-      // 輪播圖逐張上傳
       const uploadedCarousel=await Promise.all(
         carouselImgs.map(async(img,i)=>{
           if(!img) return null;
@@ -887,7 +826,7 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
           const{data,error}=await supabase.storage
             .from("site-images")
             .upload(path,blob,{upsert:true,contentType:blob.type});
-          if(error){ return img; } // 失敗退回 base64
+          if(error){ return img; } 
           const{data:{publicUrl}}=supabase.storage.from("site-images").getPublicUrl(data.path);
           return publicUrl;
         })
@@ -901,21 +840,16 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
       showToast("儲存時發生錯誤，請再試一次","error");
     }
   };
-  const addEmail=()=>{if(newEmail&&!d.staffEmails.includes(newEmail)){setD(p=>({...p,staffEmails:[...p.staffEmails,newEmail]}));setNewEmail("");}};
-  const removeEmail=e=>setD(p=>({...p,staffEmails:p.staffEmails.filter(x=>x!==e)}));
 
-  // IV.2 — live preview component using draft `d`
   const prevP=d.primaryColor;
   const LivePreview=()=>(
     <div style={{marginBottom:24}}>
       <div style={{fontSize:14,fontWeight:700,color:G[700],marginBottom:10}}>即時預覽</div>
       <div style={{border:`1.5px solid ${G[200]}`,borderRadius:16,overflow:"hidden",background:"#fff",boxShadow:"0 2px 12px rgba(0,0,0,.08)"}}>
-        {/* Mini banner */}
         <div style={{height:90,overflow:"hidden"}}>
           {bannerImg?<img src={bannerImg} style={{width:"100%",height:"100%",objectFit:"cover"}} alt=""/>
             :<div style={{height:"100%",background:`linear-gradient(150deg,${prevP}88,${prevP},${prevP}dd)`}}/>}
         </div>
-        {/* Title area */}
         <div style={{padding:"14px 16px 12px",borderBottom:`1px solid ${G[100]}`}}>
           <div style={{fontSize:17,fontWeight:800,color:G[900],marginBottom:3}}>{d.shopName||"（店名）"}</div>
           <div style={{fontSize:12,color:G[500]}}>{d.shopSubtitle||"（副標題）"}</div>
@@ -924,12 +858,10 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
             <span style={{fontSize:12,color:G[600],display:"flex",alignItems:"center",gap:4}}><Ic.Pin s={12} c={G[400]}/>查看地圖</span>
           </div>
         </div>
-        {/* Sample buttons */}
         <div style={{padding:"14px 16px",display:"flex",gap:10}}>
           <div style={{background:prevP,color:"#fff",borderRadius:10,padding:"9px 16px",fontSize:13,fontWeight:700,display:"inline-block"}}>確認預約</div>
           <div style={{background:"#fff",color:prevP,border:`1.5px solid ${prevP}`,borderRadius:10,padding:"9px 16px",fontSize:13,fontWeight:700,display:"inline-block",marginLeft:8}}>取消</div>
         </div>
-        {/* Sample pill */}
         <div style={{padding:"0 16px 14px",display:"flex",gap:8}}>
           <div style={{background:prevP,color:"#fff",borderRadius:24,padding:"8px 16px",fontSize:13,fontWeight:700}}>翻糖蛋糕</div>
           <div style={{background:"#fff",color:G[700],border:`1.5px solid ${G[200]}`,borderRadius:24,padding:"8px 16px",fontSize:13}}>杯子蛋糕</div>
@@ -959,7 +891,6 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
       <div style={{fontWeight:700,fontSize:wide?20:16,color:G[900],marginBottom:2}}>外觀與設定</div>
       <div style={{fontSize:wide?15:13,color:G[400],marginBottom:20}}>修改後按底部「儲存設定」生效</div>
 
-      {/* IV.2 — live preview */}
       <LivePreview/>
 
       <Sec title="店家資訊">
@@ -991,7 +922,6 @@ function SettingsTab({S,setS,P,st,wide,showToast,bannerImg,setBannerImg,successI
         <F label="說明內容（換行用 Enter）" val={d.noticeBody} onChange={v=>setD(p=>({...p,noticeBody:v}))} multiline/>
       </Sec>
 
-      {/* IV.3 — color picker */}
       <Sec title="主題色">
         <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:12}}>
           <input type="color" value={d.primaryColor} onChange={e=>setD(p=>({...p,primaryColor:e.target.value}))}
@@ -1059,7 +989,6 @@ function App(){
   const[toast,setToast]=useState(null);
   const[loading,setLoading]=useState(true);
 
-  // 初次載入：從資料庫讀取資料
   useEffect(()=>{
     async function init(){
       try {
@@ -1069,7 +998,6 @@ function App(){
         if(bks.length>0) setBookings(bks);
         if(crs.length>0) setCourses(crs);
         if(saved.shopName) setS((p:any)=>({...p,...saved}));
-        // 載入圖片設定
         if(saved.bannerImg) setBannerImg(saved.bannerImg);
         if(saved.successImg) setSuccessImg(saved.successImg);
         if(saved.carouselImgs) setCarouselImgs(saved.carouselImgs);
