@@ -213,7 +213,7 @@ function ImgUpload({label,sub,value,onChange,height=130}){
     </div>
   );
 }
-}
+
 // ── Shared booking card ───────────────────────────────────────────────────────
 // III.1 — removed onCheckIn / showCheckIn from customer-facing card
 // III.2 — added showNoShow + onNoShow props for staff
@@ -531,65 +531,68 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
   const st=mkS(P);
   const wide=useWide();
 
-
   // 監聽 Supabase Auth 狀態
-useEffect(()=>{
-  let mounted=true;
-  let processingAuth=false;
+  useEffect(()=>{
+    let mounted=true;
+    let processingAuth=false;
 
-  async function processSession(session:any){
-    if(!mounted||processingAuth)return;
-    processingAuth=true;
-    try{
-      if(!session?.user){ if(mounted)setStaff(null); return; }
-      const{isStaffEmail,supabase:sb}=await import("./supabase");
-      const email=session.user.email||"";
-      const ok=await isStaffEmail(email);
-      if(!mounted)return;
-      if(ok){
-        setStaff({email,name:session.user.user_metadata?.full_name||email});
-        setAuthError("");
-      } else {
-        setStaff(null);
-        setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
-        await sb.auth.signOut({scope:"local"});
-      }
-    } finally { processingAuth=false; }
-  }
-
-  import("./supabase").then(({supabase})=>{
-    // 頁面載入時檢查現有 session
-    supabase.auth.getSession().then(({data:{session}})=>processSession(session));
-
-    // OAuth 跳轉回來時接收新 token（必須保留）
-    const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
-      if(event==="SIGNED_IN") processSession(session);
-      if(event==="SIGNED_OUT"&&mounted) setStaff(null);
-    });
-
-    return()=>{ mounted=false; subscription.unsubscribe(); };
-  });
-},[]);
-
-const handleGoogleLogin=async()=>{
-  setAuthLoading(true); setAuthError("");
-  const{supabase}=await import("./supabase");
-  const{error}=await supabase.auth.signInWithOAuth({
-    provider:"google",
-    options:{
-      redirectTo:window.location.origin+window.location.pathname,
-      queryParams:{prompt:"select_account"},
+    async function processSession(session:any){
+      if(!mounted||processingAuth)return;
+      processingAuth=true;
+      try{
+        if(!session?.user){ if(mounted)setStaff(null); return; }
+        const{isStaffEmail,supabase:sb}=await import("./supabase");
+        const email=session.user.email||"";
+        const ok=await isStaffEmail(email);
+        if(!mounted)return;
+        
+        if(ok){
+          setStaff({email,name:session.user.user_metadata?.full_name||email});
+          setAuthError("");
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } else {
+          setStaff(null);
+          setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
+          await sb.auth.signOut(); 
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      } finally { processingAuth=false; }
     }
-  });
-  if(error){ setAuthError("登入失敗，請再試一次。"); setAuthLoading(false); }
-};
 
-const handleLogout=async()=>{
-  const{supabase}=await import("./supabase");
-  await supabase.auth.signOut({scope:"local"});
-  setStaff(null);
-  setAuthError("");
-};
+    import("./supabase").then(({supabase})=>{
+      // 頁面載入時檢查現有 session
+      supabase.auth.getSession().then(({data:{session}})=>processSession(session));
+
+      // OAuth 跳轉回來時接收新 token（必須保留）
+      const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
+        if(event==="SIGNED_IN") processSession(session);
+        if(event==="SIGNED_OUT"&&mounted) setStaff(null);
+      });
+
+      return()=>{ mounted=false; subscription.unsubscribe(); };
+    });
+  },[]);
+
+  const handleGoogleLogin=async()=>{
+    setAuthLoading(true); setAuthError("");
+    const{supabase}=await import("./supabase");
+    const{error}=await supabase.auth.signInWithOAuth({
+      provider:"google",
+      options:{
+        redirectTo:window.location.origin+window.location.pathname,
+        queryParams:{prompt:"select_account"},
+      }
+    });
+    if(error){ setAuthError("登入失敗，請再試一次。"); setAuthLoading(false); }
+  };
+
+  const handleLogout=async()=>{
+    const{supabase}=await import("./supabase");
+    await supabase.auth.signOut();
+    setStaff(null);
+    setAuthError("");
+    window.history.replaceState({}, document.title, window.location.pathname);
+  };
 
   if(!staff) return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
