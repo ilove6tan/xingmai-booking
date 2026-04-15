@@ -39,12 +39,7 @@ const INIT_COURSES=[
   {id:"c1",name:"翻糖蛋糕",icon:"🎂",iconImg:null,price:150,maxGroups:20,minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕簡易版（無老師全程教學）",slots:["09:30","10:40","14:10"],active:true},
   {id:"c2",name:"杯子蛋糕",icon:"🧁",iconImg:null,price:200,maxGroups:10,minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕（無老師全程教學）",slots:["13:00","15:20"],active:true},
 ];
-const INIT_BK=[
-  {id:"b1",code:"XM-20260403-001",name:"王小明",phone:"0912345678",cid:"c1",cname:"翻糖蛋糕",date:"2026-04-03",slot:"09:30",groups:2,status:"pending"},
-  {id:"b2",code:"XM-20260403-002",name:"李美玲",phone:"0987654321",cid:"c2",cname:"杯子蛋糕",date:"2026-04-03",slot:"13:00",groups:3,status:"checked_in"},
-  {id:"b3",code:"XM-"+TODAY.replace(/-/g,"")+"001",name:"陳大文",phone:"0933111222",cid:"c1",cname:"翻糖蛋糕",date:TODAY,slot:"14:10",groups:4,status:"pending"},
-  {id:"b4",code:"XM-20260405-001",name:"Kim",phone:"0970808076",cid:"c1",cname:"翻糖蛋糕",date:"2026-04-05",slot:"09:30",groups:2,status:"pending"},
-];
+const INIT_BK=[];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const isWeekend=d=>{if(!d)return false;const w=new Date(d+"T12:00:00").getDay();return w===0||w===6;};
