@@ -39,6 +39,7 @@ const INIT_COURSES=[
   {id:"c1",name:"翻糖蛋糕",icon:"🎂",iconImg:null,price:150,maxGroups:20,minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕簡易版（無老師全程教學）",slots:["09:30","10:40","14:10"],active:true},
   {id:"c2",name:"杯子蛋糕",icon:"🧁",iconImg:null,price:200,maxGroups:10,minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕（無老師全程教學）",slots:["13:00","15:20"],active:true},
 ];
+// 【已修改】清空預設的測試訂單
 const INIT_BK=[];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -51,7 +52,6 @@ const cStatus=(date,slot,bks,course,extra=0)=>{
   const hd=isWeekend(date),min=hd?course.minHd:course.minWd;
   if(total>=min)return{ok:true,label:"已確認開課（老師全程陪同教學）",c:GR,bg:GRB};
   const diff=min-total;
-  // II.1 — updated warning copy
   const label=diff===1
     ?`就差 1 組即可達標開課囉！💡 貼心提醒：滿 ${min} 組即享老師全程教學，若未滿 ${min} 組，將為您改為「簡易版翻糖蛋糕」隨到隨做 DIY 體驗。`
     :`距確認開課還差 ${diff} 組（屆時${course.fallbackWd}）`;
@@ -148,10 +148,8 @@ function Carousel({imgs,P,wide}){
   const safeIdx=idx%len;
   useEffect(()=>{if(len<=1)return;const t=setInterval(()=>setIdx(i=>(i+1)%len),3500);return()=>clearInterval(t);},[len]);
   return(
-    // 高度動態調整：電腦版 500px，手機版 320px
     <div style={{margin:"0 0 14px",position:"relative",borderRadius:16,overflow:"hidden",height:wide?500:320,background:G[50]}}>
       {imgs[safeIdx]
-        // objectFit 改為 contain 確保海報文字完整不被裁切
         ?<img src={imgs[safeIdx]} style={{width:"100%",height:"100%",objectFit:"contain"}} alt=""/>
         :<div style={{height:"100%",background:CGRADS[safeIdx%CGRADS.length],display:"flex",alignItems:"center",justifyContent:"center"}}>
           <span style={{color:"#fff",fontSize:14,fontWeight:600,opacity:.85}}>員工後台 › 設定 可上傳照片</span>
@@ -361,7 +359,6 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
           <div style={{fontSize:wide?15:14,color:G[600],lineHeight:2,whiteSpace:"pre-line",textAlign:"left"}}>{S.noticeBody}</div>
         </div>
         
-        {/* 把 wide 傳遞進去給 Carousel */}
         <Carousel imgs={carouselImgs} P={P} wide={wide}/>
         
         <div style={{background:"#fff",borderRadius:16,padding:wide?"28px":"20px",marginBottom:14,boxShadow:"0 1px 6px rgba(0,0,0,.07)"}}>
@@ -442,9 +439,9 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// QUERY PAGE
+// QUERY PAGE — 【已修改】導入滿版視覺設計
 // ══════════════════════════════════════════════════════════════════════════════
-function QueryPage({bookings,setBookings,S,P,showToast}){
+function QueryPage({bookings,setBookings,S,P,showToast,courses,successImg}){
   const[qName,setQName]=useState("");
   const[qPhone,setQPhone]=useState("");
   const[searched,setSearched]=useState(false);
@@ -457,6 +454,57 @@ function QueryPage({bookings,setBookings,S,P,showToast}){
   const results=searched?bookings.filter(b=>b.name===qName.trim()&&b.phone===qPhone):[];
   const handleCancel=id=>{setBookings(p=>p.map(b=>b.id===id?{...b,status:"cancelled"}:b));showToast("預約已成功取消");setCancelModal(null);};
 
+  const cw={maxWidth:wide?860:640,margin:"0 auto",width:"100%"};
+
+  // 查詢結果畫面：與預約成功頁面相同的排版
+  if (searched && results.length > 0) {
+    return(
+      <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
+        <div style={{height:wide?360:240,overflow:"hidden",width:"100%"}}>
+          {successImg?<img src={successImg} style={{width:"100%",height:"100%",objectFit:"cover",display:"block"}} alt=""/>
+            :<div style={{height:"100%",background:`linear-gradient(140deg,${P},${P}cc)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:80}}>🥚</div>}
+        </div>
+        <div style={{...cw,padding:wide?"0 32px":"0 16px",margin:"0 auto"}}>
+          <div style={{textAlign:"center",padding:"22px 0 10px"}}><div style={{fontSize:28,fontWeight:800,color:G[900]}}>預約資訊</div></div>
+
+          {results.map((b) => {
+            const course = courses.find(c => c.id === b.cid);
+            // 由於使用現有的 bookings，裡頭已經包含這筆訂單的組數，所以不需額外加 extra
+            const sc = course ? cStatus(b.date, b.slot, bookings, course) : null;
+            const stMap={pending:"未報到",checked_in:"已報到",cancelled:"已取消",no_show:"未到"};
+
+            return (
+              <div key={b.id} style={{marginBottom: 24}}>
+                {sc&&b.status==="pending"&&<div style={{padding:"13px 14px",borderRadius:10,background:sc.bg,color:sc.c,fontSize:15,marginBottom:14,textAlign:"center",lineHeight:1.7}}>{sc.label}</div>}
+                <div style={{...st.CARD,margin:"0 0 14px"}}>
+                  {[["姓名",b.name],["DIY 項目",b.cname],["電話",b.phone],["預訂日期",fmtDate(b.date).split(" ")[0]],["預約時段",b.slot],["預約組數",b.groups+" 組"],["訂單狀態",stMap[b.status]||b.status]].map(([k,v],i,a)=>(
+                    <div key={k} style={{display:"flex",justifyContent:"space-between",padding:"12px 0",borderBottom:i<a.length-1?`1px solid ${G[100]}`:"none"}}>
+                      <span style={{color:G[500],fontSize:15}}>{k}</span><span style={{fontWeight:600,fontSize:15,color:G[900]}}>{v}</span>
+                    </div>
+                  ))}
+                </div>
+                {b.status==="pending"&&<div style={{padding:"13px 15px",borderRadius:10,background:GRB,color:GR,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:14}}>
+                  <Ic.Check s={15} c={GR}/>請於預約時段準時抵達，現場出示此畫面即可。
+                </div>}
+                {b.date>=TODAY&&b.status==="pending"&&(
+                  <div style={{display:"flex",gap:10}}>
+                    <button style={{...st.BTN_O,flex:1}} onClick={()=>setCancelModal(b.id)}>取消預約</button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div style={{display:"flex",gap:10,paddingBottom:24}}>
+            <button style={{...st.BTN_P,width:"100%"}} onClick={()=>{setSearched(false);}}>重新查詢</button>
+          </div>
+        </div>
+        {cancelModal&&<Modal title="確認取消預約" desc="確定要取消這筆預約嗎？" confirmBg={P} onConfirm={()=>handleCancel(cancelModal)} onCancel={()=>setCancelModal(null)}/>}
+      </div>
+    );
+  }
+
+  // 預設的查詢表單畫面
   return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF,position:"relative"}}>
       <div style={{background:"#fff",padding:wide?"18px 28px":"15px 18px",borderBottom:`1px solid ${G[100]}`}}>
@@ -476,16 +524,13 @@ function QueryPage({bookings,setBookings,S,P,showToast}){
           </div>
           <button style={{...st.BTN_P,width:"100%",opacity:canSearch?1:.35,fontSize:wide?17:16}} disabled={!canSearch} onClick={doSearch}>查詢預約紀錄</button>
         </div>
-        {searched&&(results.length===0
-          ?<div style={{textAlign:"center",padding:"44px 0",color:G[400]}}><div style={{fontSize:36,marginBottom:12,opacity:.4}}>📭</div><div style={{fontSize:15}}>查無預約紀錄，請確認姓名與電話是否正確</div></div>
-          :<div style={{...st.CARD,margin:"0 0 24px",padding:0,overflow:"hidden"}}>
-            {results.map(b=>(
-              <BkCard key={b.id} b={b} showCheckIn={false} onCancel={b.date>=TODAY&&b.status==="pending"?()=>setCancelModal(b.id):null}/>
-            ))}
+        {searched&&results.length===0&&(
+          <div style={{textAlign:"center",padding:"44px 0",color:G[400]}}>
+            <div style={{fontSize:36,marginBottom:12,opacity:.4}}>📭</div>
+            <div style={{fontSize:15}}>查無預約紀錄，請確認姓名與電話是否正確</div>
           </div>
         )}
       </div>
-      {cancelModal&&<Modal title="確認取消預約" desc="確定要取消這筆預約嗎？" confirmBg={P} onConfirm={()=>handleCancel(cancelModal)} onCancel={()=>setCancelModal(null)}/>}
     </div>
   );
 }
@@ -497,6 +542,7 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
   const[staff,setStaff]=useState(null);
   const[authLoading,setAuthLoading]=useState(false);
   const[authError,setAuthError]=useState("");
+  const forcingOut=useRef(false); 
   const[tab,setTab]=useState("today");
   const[searchQ,setSearchQ]=useState("");
   const[searchDate,setSearchDate]=useState("");
@@ -1035,7 +1081,8 @@ function App(){
           <div style={{flex:1,overflow:"auto",position:"relative"}}>
             {toast&&<Toast msg={toast.msg} type={toast.type}/>}
             {tab==="booking"&&<BookingPage {...shared} courses={courses} bannerImg={bannerImg} successImg={successImg} carouselImgs={carouselImgs}/>}
-            {tab==="query"&&<QueryPage {...shared}/>}
+            {/* 【已修改】傳遞 courses 與 successImg 給 QueryPage */}
+            {tab==="query"&&<QueryPage {...shared} courses={courses} successImg={successImg}/>}
             {tab==="staff"&&<StaffPage {...shared} courses={courses} setCourses={setCourses} bannerImg={bannerImg} setBannerImg={setBannerImg} successImg={successImg} setSuccessImg={setSuccessImg} carouselImgs={carouselImgs} setCarouselImgs={setCarouselImgs} S={S} setS={setS}/>}
           </div>
         </div>
@@ -1044,7 +1091,8 @@ function App(){
           {toast&&<Toast msg={toast.msg} type={toast.type}/>}
           <div style={{height:"calc(100vh - 60px)",overflowY:"auto"}}>
             {tab==="booking"&&<BookingPage {...shared} courses={courses} bannerImg={bannerImg} successImg={successImg} carouselImgs={carouselImgs}/>}
-            {tab==="query"&&<QueryPage {...shared}/>}
+            {/* 【已修改】傳遞 courses 與 successImg 給 QueryPage */}
+            {tab==="query"&&<QueryPage {...shared} courses={courses} successImg={successImg}/>}
             {tab==="staff"&&<StaffPage {...shared} courses={courses} setCourses={setCourses} bannerImg={bannerImg} setBannerImg={setBannerImg} successImg={successImg} setSuccessImg={setSuccessImg} carouselImgs={carouselImgs} setCarouselImgs={setCarouselImgs} S={S} setS={setS}/>}
           </div>
           <div style={{position:"absolute",bottom:0,left:0,right:0,background:"#fff",borderTop:`1px solid ${G[100]}`,display:"flex",height:60}}>
