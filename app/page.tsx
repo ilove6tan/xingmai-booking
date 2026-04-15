@@ -39,7 +39,6 @@ const INIT_COURSES=[
   {id:"c1",name:"翻糖蛋糕",icon:"🎂",iconImg:null,price:150,maxGroups:20,minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕簡易版（無老師全程教學）",slots:["09:30","10:40","14:10"],active:true},
   {id:"c2",name:"杯子蛋糕",icon:"🧁",iconImg:null,price:200,maxGroups:10,minWd:4,minHd:1,fallbackWd:"改做翻糖蛋糕（無老師全程教學）",slots:["13:00","15:20"],active:true},
 ];
-// 【已修改】清空預設的測試訂單
 const INIT_BK=[];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -78,7 +77,8 @@ function useWide(){
   return w;
 }
 const mkS=(P)=>({
-  INP:{width:"100%",padding:"13px 15px",border:`1.5px solid ${G[200]}`,borderRadius:10,fontSize:15,outline:"none",boxSizing:"border-box",background:"#fff",color:G[900],fontFamily:FF},
+  // 【已修改】加上 maxWidth:"100%" 與 display:"block" 強制收束寬度
+  INP:{width:"100%",maxWidth:"100%",display:"block",padding:"13px 15px",border:`1.5px solid ${G[200]}`,borderRadius:10,fontSize:15,outline:"none",boxSizing:"border-box",background:"#fff",color:G[900],fontFamily:FF},
   BTN_P:{background:P,color:"#fff",border:"none",borderRadius:12,padding:"15px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:FF},
   BTN_O:{background:"#fff",color:P,border:`1.5px solid ${P}`,borderRadius:12,padding:"15px",fontSize:16,fontWeight:700,cursor:"pointer",fontFamily:FF},
   pill:(a)=>({background:a?P:"#fff",color:a?"#fff":G[700],border:`1.5px solid ${a?P:G[200]}`,borderRadius:24,padding:"10px 20px",cursor:"pointer",fontSize:15,fontWeight:a?700:400,fontFamily:FF,display:"flex",alignItems:"center",gap:7}),
@@ -140,7 +140,7 @@ function Badge({s}){
   return <span style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:bg,color:c,fontWeight:700,flexShrink:0}}>{t}</span>;
 }
 
-// ── Carousel (已放大高度並調整為 contain) ───────────────────────────────────────
+// ── Carousel ───────────────────────────────────────────────────────
 function Carousel({imgs,P,wide}){
   const[idx,setIdx]=useState(0);
   const valid=imgs.filter(Boolean);
@@ -439,7 +439,7 @@ function BookingPage({courses,bookings,setBookings,bannerImg,successImg,carousel
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// QUERY PAGE — 【已修改】導入滿版視覺設計
+// QUERY PAGE
 // ══════════════════════════════════════════════════════════════════════════════
 function QueryPage({bookings,setBookings,S,P,showToast,courses,successImg}){
   const[qName,setQName]=useState("");
@@ -456,7 +456,6 @@ function QueryPage({bookings,setBookings,S,P,showToast,courses,successImg}){
 
   const cw={maxWidth:wide?860:640,margin:"0 auto",width:"100%"};
 
-  // 查詢結果畫面：與預約成功頁面相同的排版
   if (searched && results.length > 0) {
     return(
       <div style={{background:G[50],minHeight:"100%",fontFamily:FF}}>
@@ -469,7 +468,6 @@ function QueryPage({bookings,setBookings,S,P,showToast,courses,successImg}){
 
           {results.map((b) => {
             const course = courses.find(c => c.id === b.cid);
-            // 由於使用現有的 bookings，裡頭已經包含這筆訂單的組數，所以不需額外加 extra
             const sc = course ? cStatus(b.date, b.slot, bookings, course) : null;
             const stMap={pending:"未報到",checked_in:"已報到",cancelled:"已取消",no_show:"未到"};
 
@@ -504,7 +502,6 @@ function QueryPage({bookings,setBookings,S,P,showToast,courses,successImg}){
     );
   }
 
-  // 預設的查詢表單畫面
   return(
     <div style={{background:G[50],minHeight:"100%",fontFamily:FF,position:"relative"}}>
       <div style={{background:"#fff",padding:wide?"18px 28px":"15px 18px",borderBottom:`1px solid ${G[100]}`}}>
@@ -570,12 +567,10 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
         if(ok){
           setStaff({email,name:session.user.user_metadata?.full_name||email});
           setAuthError("");
-          window.history.replaceState({}, document.title, window.location.pathname);
         } else {
           setStaff(null);
           setAuthError("此帳號不在員工白名單中，請聯絡管理員。");
-          await sb.auth.signOut(); 
-          window.history.replaceState({}, document.title, window.location.pathname);
+          await sb.auth.signOut();
         }
       } finally { processingAuth=false; }
     }
@@ -607,7 +602,6 @@ function StaffPage({bookings,setBookings,courses,setCourses,bannerImg,setBannerI
     await supabase.auth.signOut();
     setStaff(null);
     setAuthError("");
-    window.history.replaceState({}, document.title, window.location.pathname);
   };
 
   if(!staff) return(
@@ -1056,7 +1050,24 @@ function App(){
 
   return(
     <div style={{background:wide?"#E2E8F0":"#CBD5E1",minHeight:"100vh",fontFamily:FF}}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap');*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;}select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;padding-right:34px;}input:focus,select:focus{border-color:${P}!important;outline:none;}button:active{transform:scale(.97);}textarea:focus{border-color:${P}!important;outline:none;}`}</style>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap');
+        *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+        
+        /* 【已修改】修正 iOS 內建瀏覽器（如 LINE Safari）日期欄位爆版問題 */
+        input[type="date"] {
+          -webkit-appearance: none;
+          appearance: none;
+          width: 100%;
+          max-width: 100%;
+        }
+
+        input[type=date]::-webkit-calendar-picker-indicator{opacity:.5;cursor:pointer;}
+        select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 13px center;padding-right:34px;}
+        input:focus,select:focus{border-color:${P}!important;outline:none;}
+        button:active{transform:scale(.97);}
+        textarea:focus{border-color:${P}!important;outline:none;}
+      `}</style>
 
       {wide
         ?<div style={{display:"flex",minHeight:"100vh"}}>
@@ -1081,7 +1092,6 @@ function App(){
           <div style={{flex:1,overflow:"auto",position:"relative"}}>
             {toast&&<Toast msg={toast.msg} type={toast.type}/>}
             {tab==="booking"&&<BookingPage {...shared} courses={courses} bannerImg={bannerImg} successImg={successImg} carouselImgs={carouselImgs}/>}
-            {/* 【已修改】傳遞 courses 與 successImg 給 QueryPage */}
             {tab==="query"&&<QueryPage {...shared} courses={courses} successImg={successImg}/>}
             {tab==="staff"&&<StaffPage {...shared} courses={courses} setCourses={setCourses} bannerImg={bannerImg} setBannerImg={setBannerImg} successImg={successImg} setSuccessImg={setSuccessImg} carouselImgs={carouselImgs} setCarouselImgs={setCarouselImgs} S={S} setS={setS}/>}
           </div>
@@ -1091,7 +1101,6 @@ function App(){
           {toast&&<Toast msg={toast.msg} type={toast.type}/>}
           <div style={{height:"calc(100vh - 60px)",overflowY:"auto"}}>
             {tab==="booking"&&<BookingPage {...shared} courses={courses} bannerImg={bannerImg} successImg={successImg} carouselImgs={carouselImgs}/>}
-            {/* 【已修改】傳遞 courses 與 successImg 給 QueryPage */}
             {tab==="query"&&<QueryPage {...shared} courses={courses} successImg={successImg}/>}
             {tab==="staff"&&<StaffPage {...shared} courses={courses} setCourses={setCourses} bannerImg={bannerImg} setBannerImg={setBannerImg} successImg={successImg} setSuccessImg={setSuccessImg} carouselImgs={carouselImgs} setCarouselImgs={setCarouselImgs} S={S} setS={setS}/>}
           </div>
